@@ -1,7 +1,7 @@
 {
-    "name": "jsdataframe",
+    "name": "jsdf",
     "version": "1.4.3",
-    "description": "Immutable and functional data structure for datascientists and developpers",
+    "description": "Javascript Dataframe - Immutable and functional data structure for datascientists and developpers",
     "keywords": [
         "DataFrame",
         "data",
