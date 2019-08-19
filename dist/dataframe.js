@@ -6563,7 +6563,7 @@ var dfjs = (function (exports) {
 	}
 
 	function addFileProtocol(path) {
-	  return path.startsWith("/") || path.startsWith("./") || path.startsWith("C") ? "file://".concat(path) : path;
+	  return path.startsWith("/") || path.startsWith("./") || path.startsWith("C") || /^[a-z]:[/\\]/i.test(path) ? "file://".concat(path) : path;
 	}
 
 	function toDSV(df) {
@@ -6625,12 +6625,9 @@ var dfjs = (function (exports) {
 	    var parseText = function parseText(fileContent) {
 	      if (fileContent.includes("Error: ENOENT")) return resolve(null); // compatible utf8-bom(byte-order-mark)
 
-	      if (fileContent[0].toString(16).toLowerCase() == "ef" && fileContent[1].toString(16).toLowerCase() == "bb" && fileContent[2].toString(16).toLowerCase() == "bf") {
-	        fileContent = fileContent.slice(3);
-	      } // if (fileContent.indexOf('\uFEFF') === 0) {
-	      //   fileContent = fileContent.replace('\uFEFF', '');
-	      // }
-
+	      if (fileContent[0].toString(16) === "\uFEFF") {
+	        fileContent = fileContent.slice(1);
+	      }
 
 	      var data = header ? parser.parse(fileContent) : parser.parseRows(fileContent);
 	      return resolve(data);

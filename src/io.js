@@ -21,7 +21,7 @@ function loadTextFile(file, func) {
 }
 
 function addFileProtocol(path) {
-    return path.startsWith("/") || path.startsWith("./") || path.startsWith("C")
+    return path.startsWith("/") || path.startsWith("./") || path.startsWith("C") || /^[a-z]:[/\\]/i.test(path)
         ? `file://${path}`
         : path;
 }
@@ -69,16 +69,9 @@ function fromDSV(pathOrFile, sep = ";", header = true) {
         const parseText = fileContent => {
             if (fileContent.includes("Error: ENOENT")) return resolve(null);
             // compatible utf8-bom(byte-order-mark)
-            if (
-                fileContent[0].toString(16).toLowerCase() == "ef"
-                && fileContent[1].toString(16).toLowerCase() == "bb"
-                && fileContent[2].toString(16).toLowerCase() == "bf"
-            ) {
-                fileContent = fileContent.slice(3);
+            if (fileContent[0].toString(16) === '\uFEFF') {
+                fileContent = fileContent.slice(1);
             }
-            // if (fileContent.indexOf('\uFEFF') === 0) {
-            //   fileContent = fileContent.replace('\uFEFF', '');
-            // }
             const data = header
                 ? parser.parse(fileContent)
                 : parser.parseRows(fileContent);
