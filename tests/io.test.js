@@ -237,7 +237,12 @@ test.cb("DataFrame can be created from", assert => {
         "another DataFrame."
     );
 
-    const currentPath = path.resolve(__dirname) + "/data";
+    let currentPath = path.resolve(__dirname) + "/data";
+
+    // windows  C:\...   D:\... E:\...
+    if (/^[a-z]\:/i.test(currentPath)) {
+        currentPath = 'file://' + currentPath;
+    }
 
     DataFrame.fromCSV(`${currentPath}/Titanic.csv`, true).then(value =>
         assert.deepEqual(

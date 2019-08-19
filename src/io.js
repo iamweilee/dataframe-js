@@ -68,6 +68,17 @@ function fromDSV(pathOrFile, sep = ";", header = true) {
     return new Promise(resolve => {
         const parseText = fileContent => {
             if (fileContent.includes("Error: ENOENT")) return resolve(null);
+            // compatible utf8-bom(byte-order-mark)
+            if (
+                fileContent[0].toString(16).toLowerCase() == "ef"
+                && fileContent[1].toString(16).toLowerCase() == "bb"
+                && fileContent[2].toString(16).toLowerCase() == "bf"
+            ) {
+                fileContent = fileContent.slice(3);
+            }
+            // if (fileContent.indexOf('\uFEFF') === 0) {
+            //   fileContent = fileContent.replace('\uFEFF', '');
+            // }
             const data = header
                 ? parser.parse(fileContent)
                 : parser.parseRows(fileContent);

@@ -198,7 +198,7 @@ var dfjs = (function (exports) {
 	(module.exports = function (key, value) {
 	  return store[key] || (store[key] = value !== undefined ? value : {});
 	})('versions', []).push({
-	  version: '3.1.3',
+	  version: '3.2.1',
 	  mode: 'global',
 	  copyright: '© 2019 Denis Pushkarev (zloirock.ru)'
 	});
@@ -2072,17 +2072,17 @@ var dfjs = (function (exports) {
 	  var fixMethod = function (KEY) {
 	    var nativeMethod = NativePrototype[KEY];
 	    redefine(NativePrototype, KEY,
-	      KEY == 'add' ? function add(a) {
-	        nativeMethod.call(this, a === 0 ? 0 : a);
+	      KEY == 'add' ? function add(value) {
+	        nativeMethod.call(this, value === 0 ? 0 : value);
 	        return this;
-	      } : KEY == 'delete' ? function (a) {
-	        return IS_WEAK && !isObject(a) ? false : nativeMethod.call(this, a === 0 ? 0 : a);
-	      } : KEY == 'get' ? function get(a) {
-	        return IS_WEAK && !isObject(a) ? undefined : nativeMethod.call(this, a === 0 ? 0 : a);
-	      } : KEY == 'has' ? function has(a) {
-	        return IS_WEAK && !isObject(a) ? false : nativeMethod.call(this, a === 0 ? 0 : a);
-	      } : function set(a, b) {
-	        nativeMethod.call(this, a === 0 ? 0 : a, b);
+	      } : KEY == 'delete' ? function (key) {
+	        return IS_WEAK && !isObject(key) ? false : nativeMethod.call(this, key === 0 ? 0 : key);
+	      } : KEY == 'get' ? function get(key) {
+	        return IS_WEAK && !isObject(key) ? undefined : nativeMethod.call(this, key === 0 ? 0 : key);
+	      } : KEY == 'has' ? function has(key) {
+	        return IS_WEAK && !isObject(key) ? false : nativeMethod.call(this, key === 0 ? 0 : key);
+	      } : function set(key, value) {
+	        nativeMethod.call(this, key === 0 ? 0 : key, value);
 	        return this;
 	      }
 	    );
@@ -2099,7 +2099,7 @@ var dfjs = (function (exports) {
 	    var instance = new Constructor();
 	    // early implementations not supports chaining
 	    var HASNT_CHAINING = instance[ADDER](IS_WEAK ? {} : -0, 1) != instance;
-	    // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
+	    // V8 ~ Chromium 40- weak-collections throws on primitives, but should return false
 	    var THROWS_ON_PRIMITIVES = fails(function () { instance.has(1); });
 	    // most early implementations doesn't supports iterables, most modern - not close it correctly
 	    // eslint-disable-next-line no-new
@@ -2703,8 +2703,10 @@ var dfjs = (function (exports) {
 	  var collection = anObject(this);
 	  var remover = aFunction$1(collection['delete']);
 	  var allDeleted = true;
+	  var wasDeleted;
 	  for (var k = 0, len = arguments.length; k < len; k++) {
-	    allDeleted = allDeleted && remover.call(collection, arguments[k]);
+	    wasDeleted = remover.call(collection, arguments[k]);
+	    allDeleted = allDeleted && wasDeleted;
 	  }
 	  return !!allDeleted;
 	};
@@ -5241,6 +5243,24 @@ var dfjs = (function (exports) {
 	  return new GroupedDataFrame(df, columnNames, groups, hashes);
 	}
 
+	var DatePrototype = Date.prototype;
+	var INVALID_DATE = 'Invalid Date';
+	var TO_STRING = 'toString';
+	var nativeDateToString = DatePrototype[TO_STRING];
+	var getTime = DatePrototype.getTime;
+
+	// `Date.prototype.toString` method
+	// https://tc39.github.io/ecma262/#sec-date.prototype.tostring
+	if (new Date(NaN) + '' != INVALID_DATE) {
+	  redefine(DatePrototype, TO_STRING, function toString() {
+	    var value = getTime.call(this);
+	    // eslint-disable-next-line no-self-compare
+	    return value === value ? nativeDateToString.call(this) : INVALID_DATE;
+	  });
+	}
+
+	var nativePromiseConstructor = global_1.Promise;
+
 	var location = global_1.location;
 	var set$2 = global_1.setImmediate;
 	var clear = global_1.clearImmediate;
@@ -5349,7 +5369,7 @@ var dfjs = (function (exports) {
 	var queueMicrotaskDescriptor = getOwnPropertyDescriptor$2(global_1, 'queueMicrotask');
 	var queueMicrotask = queueMicrotaskDescriptor && queueMicrotaskDescriptor.value;
 
-	var flush, head, last, notify, toggle, node, promise;
+	var flush, head, last, notify, toggle, node, promise, then;
 
 	// modern engines have queueMicrotask method
 	if (!queueMicrotask) {
@@ -5387,8 +5407,9 @@ var dfjs = (function (exports) {
 	  } else if (Promise$1 && Promise$1.resolve) {
 	    // Promise.resolve without an argument throws an error in LG WebOS 2
 	    promise = Promise$1.resolve(undefined);
+	    then = promise.then;
 	    notify = function () {
-	      promise.then(flush);
+	      then.call(promise, flush);
 	    };
 	  // for other environments - macrotask based on:
 	  // - setImmediate
@@ -5473,7 +5494,7 @@ var dfjs = (function (exports) {
 	var getInternalState$3 = internalState.get;
 	var setInternalState$4 = internalState.set;
 	var getInternalPromiseState = internalState.getterFor(PROMISE);
-	var PromiseConstructor = global_1[PROMISE];
+	var PromiseConstructor = nativePromiseConstructor;
 	var TypeError$1 = global_1.TypeError;
 	var document$2 = global_1.document;
 	var process$2 = global_1.process;
@@ -5491,7 +5512,7 @@ var dfjs = (function (exports) {
 	var REJECTED = 2;
 	var HANDLED = 1;
 	var UNHANDLED = 2;
-	var Internal, OwnPromiseCapability, PromiseWrapper;
+	var Internal, OwnPromiseCapability, PromiseWrapper, nativeThen;
 
 	var FORCED$4 = isForced_1(PROMISE, function () {
 	  // correct subclassing with @@species support
@@ -5716,13 +5737,25 @@ var dfjs = (function (exports) {
 	      : newGenericPromiseCapability(C);
 	  };
 
-	  // wrap fetch result
-	  if (typeof $fetch == 'function') _export({ global: true, enumerable: true, forced: true }, {
-	    // eslint-disable-next-line no-unused-vars
-	    fetch: function fetch(input) {
-	      return promiseResolve(PromiseConstructor, $fetch.apply(global_1, arguments));
-	    }
-	  });
+	  if (typeof nativePromiseConstructor == 'function') {
+	    nativeThen = nativePromiseConstructor.prototype.then;
+
+	    // wrap native Promise#then for native async functions
+	    redefine(nativePromiseConstructor.prototype, 'then', function then(onFulfilled, onRejected) {
+	      var that = this;
+	      return new PromiseConstructor(function (resolve, reject) {
+	        nativeThen.call(that, resolve, reject);
+	      }).then(onFulfilled, onRejected);
+	    });
+
+	    // wrap fetch result
+	    if (typeof $fetch == 'function') _export({ global: true, enumerable: true, forced: true }, {
+	      // eslint-disable-next-line no-unused-vars
+	      fetch: function fetch(input) {
+	        return promiseResolve(PromiseConstructor, $fetch.apply(global_1, arguments));
+	      }
+	    });
+	  }
 	}
 
 	_export({ global: true, wrap: true, forced: FORCED$4 }, {
@@ -5799,6 +5832,26 @@ var dfjs = (function (exports) {
 	    return capability.promise;
 	  }
 	});
+
+	var TO_STRING$1 = 'toString';
+	var RegExpPrototype = RegExp.prototype;
+	var nativeToString = RegExpPrototype[TO_STRING$1];
+
+	var NOT_GENERIC = fails(function () { return nativeToString.call({ source: 'a', flags: 'b' }) != '/a/b'; });
+	// FF44- RegExp#toString has a wrong name
+	var INCORRECT_NAME = nativeToString.name != TO_STRING$1;
+
+	// `RegExp.prototype.toString` method
+	// https://tc39.github.io/ecma262/#sec-regexp.prototype.tostring
+	if (NOT_GENERIC || INCORRECT_NAME) {
+	  redefine(RegExp.prototype, TO_STRING$1, function toString() {
+	    var R = anObject(this);
+	    var p = String(R.source);
+	    var rf = R.flags;
+	    var f = String(rf === undefined && R instanceof RegExp && !('flags' in RegExpPrototype) ? regexpFlags.call(R) : rf);
+	    return '/' + p + '/' + f;
+	  }, { unsafe: true });
+	}
 
 	var nativeStartsWith = ''.startsWith;
 	var min$4 = Math.min;
@@ -6213,6 +6266,30 @@ var dfjs = (function (exports) {
 	  return columns;
 	}
 
+	function pad(value, width) {
+	  var s = value + "", length = s.length;
+	  return length < width ? new Array(width - length + 1).join(0) + s : s;
+	}
+
+	function formatYear(year) {
+	  return year < 0 ? "-" + pad(-year, 6)
+	    : year > 9999 ? "+" + pad(year, 6)
+	    : pad(year, 4);
+	}
+
+	function formatDate(date) {
+	  var hours = date.getUTCHours(),
+	      minutes = date.getUTCMinutes(),
+	      seconds = date.getUTCSeconds(),
+	      milliseconds = date.getUTCMilliseconds();
+	  return isNaN(date) ? "Invalid Date"
+	      : formatYear(date.getUTCFullYear(), 4) + "-" + pad(date.getUTCMonth() + 1, 2) + "-" + pad(date.getUTCDate(), 2)
+	      + (milliseconds ? "T" + pad(hours, 2) + ":" + pad(minutes, 2) + ":" + pad(seconds, 2) + "." + pad(milliseconds, 3) + "Z"
+	      : seconds ? "T" + pad(hours, 2) + ":" + pad(minutes, 2) + ":" + pad(seconds, 2) + "Z"
+	      : minutes || hours ? "T" + pad(hours, 2) + ":" + pad(minutes, 2) + "Z"
+	      : "");
+	}
+
 	function dsv(delimiter) {
 	  var reFormat = new RegExp("[\"" + delimiter + "\n\r]"),
 	      DELIMITER = delimiter.charCodeAt(0);
@@ -6275,8 +6352,163 @@ var dfjs = (function (exports) {
 	    return rows;
 	  }
 
+	  function preformatBody(rows, columns) {
+	    return rows.map(function(row) {
+	      return columns.map(function(column) {
+	        return formatValue(row[column]);
+	      }).join(delimiter);
+	    });
+	  }
+
 	  function format(rows, columns) {
 	    if (columns == null) columns = inferColumns(rows);
+	    return [columns.map(formatValue).join(delimiter)].concat(preformatBody(rows, columns)).join("\n");
+	  }
+
+	  function formatBody(rows, columns) {
+	    if (columns == null) columns = inferColumns(rows);
+	    return preformatBody(rows, columns).join("\n");
+	  }
+
+	  function formatRows(rows) {
+	    return rows.map(formatRow).join("\n");
+	  }
+
+	  function formatRow(row) {
+	    return row.map(formatValue).join(delimiter);
+	  }
+
+	  function formatValue(value) {
+	    return value == null ? ""
+	        : value instanceof Date ? formatDate(value)
+	        : reFormat.test(value += "") ? "\"" + value.replace(/"/g, "\"\"") + "\""
+	        : value;
+	  }
+
+	  return {
+	    parse: parse,
+	    parseRows: parseRows,
+	    format: format,
+	    formatBody: formatBody,
+	    formatRows: formatRows
+	  };
+	}
+
+	var csv = dsv(",");
+
+	var csvParse = csv.parse;
+	var csvParseRows = csv.parseRows;
+	var csvFormat = csv.format;
+	var csvFormatBody = csv.formatBody;
+	var csvFormatRows = csv.formatRows;
+
+	var tsv = dsv("\t");
+
+	var tsvParse = tsv.parse;
+	var tsvParseRows = tsv.parseRows;
+	var tsvFormat = tsv.format;
+	var tsvFormatBody = tsv.formatBody;
+	var tsvFormatRows = tsv.formatRows;
+
+	var EOL$1 = {},
+	    EOF$1 = {},
+	    QUOTE$1 = 34,
+	    NEWLINE$1 = 10,
+	    RETURN$1 = 13;
+
+	function objectConverter$1(columns) {
+	  return new Function("d", "return {" + columns.map(function(name, i) {
+	    return JSON.stringify(name) + ": d[" + i + "]";
+	  }).join(",") + "}");
+	}
+
+	function customConverter$1(columns, f) {
+	  var object = objectConverter$1(columns);
+	  return function(row, i) {
+	    return f(object(row), i, columns);
+	  };
+	}
+
+	// Compute unique columns in order of discovery.
+	function inferColumns$1(rows) {
+	  var columnSet = Object.create(null),
+	      columns = [];
+
+	  rows.forEach(function(row) {
+	    for (var column in row) {
+	      if (!(column in columnSet)) {
+	        columns.push(columnSet[column] = column);
+	      }
+	    }
+	  });
+
+	  return columns;
+	}
+
+	function dsv$2(delimiter) {
+	  var reFormat = new RegExp("[\"" + delimiter + "\n\r]"),
+	      DELIMITER = delimiter.charCodeAt(0);
+
+	  function parse(text, f) {
+	    var convert, columns, rows = parseRows(text, function(row, i) {
+	      if (convert) return convert(row, i - 1);
+	      columns = row, convert = f ? customConverter$1(row, f) : objectConverter$1(row);
+	    });
+	    rows.columns = columns || [];
+	    return rows;
+	  }
+
+	  function parseRows(text, f) {
+	    var rows = [], // output rows
+	        N = text.length,
+	        I = 0, // current character index
+	        n = 0, // current line number
+	        t, // current token
+	        eof = N <= 0, // current token followed by EOF?
+	        eol = false; // current token followed by EOL?
+
+	    // Strip the trailing newline.
+	    if (text.charCodeAt(N - 1) === NEWLINE$1) --N;
+	    if (text.charCodeAt(N - 1) === RETURN$1) --N;
+
+	    function token() {
+	      if (eof) return EOF$1;
+	      if (eol) return eol = false, EOL$1;
+
+	      // Unescape quotes.
+	      var i, j = I, c;
+	      if (text.charCodeAt(j) === QUOTE$1) {
+	        while (I++ < N && text.charCodeAt(I) !== QUOTE$1 || text.charCodeAt(++I) === QUOTE$1);
+	        if ((i = I) >= N) eof = true;
+	        else if ((c = text.charCodeAt(I++)) === NEWLINE$1) eol = true;
+	        else if (c === RETURN$1) { eol = true; if (text.charCodeAt(I) === NEWLINE$1) ++I; }
+	        return text.slice(j + 1, i - 1).replace(/""/g, "\"");
+	      }
+
+	      // Find next delimiter or newline.
+	      while (I < N) {
+	        if ((c = text.charCodeAt(i = I++)) === NEWLINE$1) eol = true;
+	        else if (c === RETURN$1) { eol = true; if (text.charCodeAt(I) === NEWLINE$1) ++I; }
+	        else if (c !== DELIMITER) continue;
+	        return text.slice(j, i);
+	      }
+
+	      // Return last token before EOF.
+	      return eof = true, text.slice(j, N);
+	    }
+
+	    while ((t = token()) !== EOF$1) {
+	      var row = [];
+	      while (t !== EOL$1 && t !== EOF$1) row.push(t), t = token();
+	      if (f && (row = f(row, n++)) == null) continue;
+	      rows.push(row);
+	    }
+
+	    return rows;
+	  }
+
+	  function format(rows, columns) {
+	    if (columns == null) columns = inferColumns$1(rows);
 	    return [columns.map(formatValue).join(delimiter)].concat(rows.map(function(row) {
 	      return columns.map(function(column) {
 	        return formatValue(row[column]);
@@ -6306,19 +6538,9 @@ var dfjs = (function (exports) {
 	  };
 	}
 
-	var csv = dsv(",");
+	var csv$2 = dsv$2(",");
 
-	var csvParse = csv.parse;
-	var csvParseRows = csv.parseRows;
-	var csvFormat = csv.format;
-	var csvFormatRows = csv.formatRows;
-
-	var tsv = dsv("\t");
-
-	var tsvParse = tsv.parse;
-	var tsvParseRows = tsv.parseRows;
-	var tsvFormat = tsv.format;
-	var tsvFormatRows = tsv.formatRows;
+	var tsv$2 = dsv$2("\t");
 
 	function saveFile(path, content) {
 	  try {
@@ -6348,7 +6570,7 @@ var dfjs = (function (exports) {
 	  var sep = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : ";";
 	  var header = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
 	  var path = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : undefined;
-	  var parser = dsv(sep);
+	  var parser = dsv$2(sep);
 	  var csvContent = header ? parser.format(df.toCollection(), df[__columns__$1]) : parser.formatRows(df.toArray());
 
 	  if (path) {
@@ -6398,10 +6620,18 @@ var dfjs = (function (exports) {
 	function fromDSV(pathOrFile) {
 	  var sep = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : ";";
 	  var header = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
-	  var parser = dsv(sep);
+	  var parser = dsv$2(sep);
 	  return new Promise(function (resolve) {
 	    var parseText = function parseText(fileContent) {
-	      if (fileContent.includes("Error: ENOENT")) return resolve(null);
+	      if (fileContent.includes("Error: ENOENT")) return resolve(null); // compatible utf8-bom(byte-order-mark)
+
+	      if (fileContent[0].toString(16).toLowerCase() == "ef" && fileContent[1].toString(16).toLowerCase() == "bb" && fileContent[2].toString(16).toLowerCase() == "bf") {
+	        fileContent = fileContent.slice(3);
+	      } // if (fileContent.indexOf('\uFEFF') === 0) {
+	      //   fileContent = fileContent.replace('\uFEFF', '');
+	      // }
+
+
 	      var data = header ? parser.parse(fileContent) : parser.parseRows(fileContent);
 	      return resolve(data);
 	    };
@@ -8353,7 +8583,7 @@ var dfjs = (function (exports) {
 
 	var MATCH$2 = wellKnownSymbol('match');
 	var NativeRegExp = global_1.RegExp;
-	var RegExpPrototype = NativeRegExp.prototype;
+	var RegExpPrototype$1 = NativeRegExp.prototype;
 	var re1 = /a/g;
 	var re2 = /a/g;
 
@@ -8379,7 +8609,7 @@ var dfjs = (function (exports) {
 	        : NativeRegExp((patternIsRegExp = pattern instanceof RegExpWrapper)
 	          ? pattern.source
 	          : pattern, patternIsRegExp && flagsAreUndefined ? regexpFlags.call(pattern) : flags)
-	      , thisIsRegExp ? this : RegExpPrototype, RegExpWrapper);
+	      , thisIsRegExp ? this : RegExpPrototype$1, RegExpWrapper);
 	  };
 	  var proxy = function (key) {
 	    key in RegExpWrapper || defineProperty$6(RegExpWrapper, key, {
@@ -8391,33 +8621,13 @@ var dfjs = (function (exports) {
 	  var keys$3 = getOwnPropertyNames$1(NativeRegExp);
 	  var index = 0;
 	  while (keys$3.length > index) proxy(keys$3[index++]);
-	  RegExpPrototype.constructor = RegExpWrapper;
-	  RegExpWrapper.prototype = RegExpPrototype;
+	  RegExpPrototype$1.constructor = RegExpWrapper;
+	  RegExpWrapper.prototype = RegExpPrototype$1;
 	  redefine(global_1, 'RegExp', RegExpWrapper);
 	}
 
 	// https://tc39.github.io/ecma262/#sec-get-regexp-@@species
 	setSpecies('RegExp');
-
-	var TO_STRING = 'toString';
-	var RegExpPrototype$1 = RegExp.prototype;
-	var nativeToString = RegExpPrototype$1[TO_STRING];
-
-	var NOT_GENERIC = fails(function () { return nativeToString.call({ source: 'a', flags: 'b' }) != '/a/b'; });
-	// FF44- RegExp#toString has a wrong name
-	var INCORRECT_NAME = nativeToString.name != TO_STRING;
-
-	// `RegExp.prototype.toString` method
-	// https://tc39.github.io/ecma262/#sec-regexp.prototype.tostring
-	if (NOT_GENERIC || INCORRECT_NAME) {
-	  redefine(RegExp.prototype, TO_STRING, function toString() {
-	    var R = anObject(this);
-	    var p = String(R.source);
-	    var rf = R.flags;
-	    var f = String(rf === undefined && R instanceof RegExp && !('flags' in RegExpPrototype$1) ? regexpFlags.call(R) : rf);
-	    return '/' + p + '/' + f;
-	  }, { unsafe: true });
-	}
 
 	var $find = arrayIteration.find;
 
