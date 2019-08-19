@@ -6563,7 +6563,11 @@ var dfjs = (function (exports) {
 	}
 
 	function addFileProtocol(path) {
-	  return path.startsWith("/") || path.startsWith("./") || path.startsWith("C") || /^[a-z]:[/\\]/i.test(path) ? "file://".concat(path) : path;
+	  if (path.startsWith("./")) {
+	    path = require('path').join(__dirname, path);
+	  }
+
+	  return path.startsWith("/") || path.startsWith("C") || /^[a-z]:[/\\]/i.test(path) ? "file://".concat(path) : path;
 	}
 
 	function toDSV(df) {

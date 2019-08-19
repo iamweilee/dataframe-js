@@ -1,6 +1,6 @@
 {
     "name": "jxy-dataframe",
-    "version": "1.4.4",
+    "version": "1.4.5",
     "description": "Immutable and functional data structure for datascientists and developpers",
     "keywords": [
         "DataFrame",
