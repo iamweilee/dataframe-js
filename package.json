@@ -1,5 +1,5 @@
 {
-    "name": "jxy-dataframe-js",
+    "name": "jxy-dataframe",
     "version": "1.4.3",
     "description": "Immutable and functional data structure for datascientists and developpers",
     "keywords": [
@@ -19,7 +19,7 @@
     "bugs": "https://github.com/Gmousse/dataframe-js/issues",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Gmousse/dataframe-js.git"
+        "url": "https://github.com/iamweilee/dataframe-js.git"
     },
     "main": "./lib/index.js",
     "scripts": {
